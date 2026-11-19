@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#10151f">
 <title>VELTRIX MESSENGER</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 :root{color-scheme:dark;--bg:#0b1018;--panel:#111a27;--panel2:#172333;--line:#26364b;--text:#edf4ff;--muted:#94a8c2;--accent:#e04455;--accent2:#ff6876;--green:#37c995}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#1b2b43 0,transparent 34%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
@@ -67,7 +67,27 @@ small,.muted{color:var(--muted)}.hidden{display:none!important}.brand{font-weigh
 <div id="toast" class="hidden"></div><section id="callScreen" class="call-screen hidden"><h2 id="callTitle">تماس تصویری</h2><div class="call-videos"><div><small>طرف مقابل</small><video id="remoteVideo" autoplay playsinline></video></div><div><small>دوربین شما</small><video id="localVideo" autoplay muted playsinline></video></div></div><div class="call-actions"><button id="endCallBtn" style="background:#b42335">قطع تماس</button><button id="muteCallBtn" class="secondary">قطع میکروفون</button><button id="cameraCallBtn" class="secondary">خاموش‌کردن دوربین</button></div></section>
 
 <script>
-(() => {
+(async () => {
+try {
+  if (!window.supabase?.createClient) {
+    await new Promise((resolve, reject) => {
+      const load = (src, fallback) => {
+        const script = document.createElement("script");
+        script.src = src;
+        script.onload = () => window.supabase?.createClient ? resolve() : (fallback ? load(fallback, null) : reject(new Error("کتابخانه ورود بارگذاری نشد.")));
+        script.onerror = () => fallback ? load(fallback, null) : reject(new Error("اتصال به سرویس ورود برقرار نشد. اینترنت یا فیلترشکن را بررسی کن."));
+        document.head.appendChild(script);
+      };
+      load("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2", "https://unpkg.com/@supabase/supabase-js@2");
+    });
+  }
+} catch (error) {
+  const notice = document.getElementById("authNotice");
+  if (notice) notice.textContent = error.message || "بارگذاری سامانه ورود ناموفق بود.";
+  const submit = document.getElementById("authSubmit");
+  if (submit) submit.disabled = true;
+  return;
+}
 const SUPABASE_URL = "https://gpelalzygwnfngikrcvs.supabase.co";
 const SUPABASE_KEY = "sb_publishable_O17L43rRgYkbA9JY5kSEsQ_7qyQUhTZ";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
