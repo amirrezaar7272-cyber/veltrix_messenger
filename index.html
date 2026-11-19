@@ -82,7 +82,7 @@ function setAuthMode(mode){authMode=mode;const signup=mode==="signup";$("authTit
 $("switchAuth").onclick=()=>setAuthMode(authMode==="login"?"signup":"login");
 $("authForm").addEventListener("submit",async e=>{e.preventDefault();$("authSubmit").disabled=true;setNotice("در حال اتصال...");try{
  const email=$("email").value.trim(),password=$("password").value;
- if(authMode==="signup"){const {data,error}=await db.auth.signUp({email,password,options:{data:{name:$("displayName").value.trim()||email.split("@")[0]}}});if(error)throw error;if(data.session){await boot(data.session.user)}else setNotice("حساب ساخته شد. اگر تأیید ایمیل فعال باشد، ایمیلت را تأیید کن و سپس وارد شو.");}
+ if(authMode==="signup"){const {data,error}=await db.auth.signUp({email,password,options:{data:{name:$("displayName").value.trim()||email.split("@")[0]},emailRedirectTo:"https://veltrix-messenger.pages.dev"}});if(error)throw error;if(data.session){await boot(data.session.user)}else setNotice("حساب ساخته شد. اگر تأیید ایمیل فعال باشد، ایمیلت را تأیید کن و سپس وارد شو.");}
  else{const {data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;await boot(data.user)}
  }catch(err){setNotice(err.message||"خطا در ورود")}finally{$("authSubmit").disabled=false;}});
 async function boot(u){user=u;showApp();await loadProfile();await loadConversations();}
