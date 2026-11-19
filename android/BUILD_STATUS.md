@@ -1,0 +1,1 @@
+Native Android scaffold is committed on `android-native`. The GitHub Actions workflow builds a debug APK and uploads it as `veltrix-messenger-debug-apk`. This file also triggers the first CI build after the workflow was added to the default branch.
