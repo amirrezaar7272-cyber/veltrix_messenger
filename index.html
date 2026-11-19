@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#10151f">
+<title>VELTRIX MESSENGER</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{color-scheme:dark;--bg:#0b1018;--panel:#111a27;--panel2:#172333;--line:#26364b;--text:#edf4ff;--muted:#94a8c2;--accent:#e04455;--accent2:#ff6876;--green:#37c995}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#1b2b43 0,transparent 34%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+button,input,textarea,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:11px 15px;background:var(--accent);color:white;font-weight:700}button:hover{background:var(--accent2)}button:disabled{opacity:.45;cursor:not-allowed}
+input,textarea,select{width:100%;border:1px solid var(--line);border-radius:12px;background:#0c1420;color:var(--text);padding:12px;outline:none}input:focus,textarea:focus,select:focus{border-color:var(--accent2)}
+small,.muted{color:var(--muted)}.hidden{display:none!important}.brand{font-weight:900;letter-spacing:1.5px}.brand b{color:var(--accent2)}
+#auth{max-width:430px;margin:8vh auto;padding:28px;background:rgba(17,26,39,.94);border:1px solid var(--line);border-radius:24px;box-shadow:0 25px 90px #0008}
+#auth h1{margin:0 0 6px;font-size:25px}#auth .sub{margin:0 0 24px;color:var(--muted)}.field{display:grid;gap:7px;margin:13px 0}.actions{display:flex;gap:9px}.actions>*{flex:1}.secondary{background:var(--panel2);border:1px solid var(--line)}.notice{min-height:22px;color:var(--accent2);font-size:13px;margin-top:12px}
+#app{height:100dvh;max-width:1500px;margin:auto;padding:16px;display:grid;grid-template-columns:340px minmax(0,1fr);gap:14px}
+.sidebar,.chat{background:rgba(17,26,39,.95);border:1px solid var(--line);border-radius:22px;min-height:0;overflow:hidden}
+.sidebar{display:flex;flex-direction:column}.sidehead{padding:20px;border-bottom:1px solid var(--line)}.sideheadtop{display:flex;align-items:center;justify-content:space-between;gap:10px}.sidehead p{margin:5px 0 0;color:var(--muted);font-size:13px}.sideactions{display:flex;gap:8px;margin-top:16px}.sideactions button{flex:1;padding:9px 8px;font-size:13px}
+#conversationList{overflow:auto;padding:8px}.conv{display:flex;align-items:center;gap:12px;width:100%;text-align:right;background:transparent;border:1px solid transparent;color:var(--text);padding:12px;margin:3px 0}.conv:hover,.conv.active{background:var(--panel2);border-color:var(--line)}.avatar{width:42px;height:42px;flex:0 0 42px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(140deg,#5d2639,#263f5e);font-weight:900}.convtext{min-width:0;flex:1}.convtitle{font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.convsub{font-size:12px;color:var(--muted);margin-top:4px}
+.chat{display:flex;flex-direction:column}.chathead{padding:17px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.chathead h2{font-size:17px;margin:0}.chathead small{display:block;margin-top:3px}
+#messages{flex:1;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:11px;background:linear-gradient(#101a28aa,#101a28aa),radial-gradient(circle at 50% 100%,#1c2b40,#0e1724)}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:330px;line-height:1.9}.bubble{max-width:min(75%,620px);padding:11px 14px;border-radius:17px;background:#1c2b3d;border:1px solid #2a3b50;align-self:flex-start;overflow-wrap:anywhere}.bubble.mine{align-self:flex-end;background:#542735;border-color:#793344}.sender{font-size:11px;color:#ffb4bd;margin-bottom:5px}.time{font-size:10px;color:#b4c2d3;margin-top:6px;text-align:left}.bubble img{max-width:100%;max-height:300px;border-radius:10px;display:block}.bubble audio{max-width:100%}
+.composer{padding:14px;border-top:1px solid var(--line);display:flex;align-items:flex-end;gap:9px}.composer textarea{resize:none;min-height:45px;max-height:130px;flex:1}.toolbtn{background:var(--panel2);border:1px solid var(--line);padding:10px 12px}.send{min-width:72px}.chatfoot{padding:0 18px 10px;color:var(--muted);font-size:11px}
+.modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;padding:18px;z-index:5}.modalbox{width:min(100%,450px);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px}.modalbox h3{margin:0 0 16px}.modalbuttons{display:flex;gap:9px;margin-top:16px}.modalbuttons>*{flex:1}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1b2a3b;border:1px solid var(--line);padding:11px 16px;border-radius:12px;z-index:9;max-width:90%;box-shadow:0 10px 35px #0008}
+@media(max-width:760px){#app{height:100dvh;padding:0;display:block}.sidebar,.chat{border-radius:0;height:100dvh;border:0}.sidebar{height:100dvh}.chat{display:none}.chat.mobile-show{display:flex}.sidebar.mobile-hide{display:none}.sidehead{padding:16px}.chathead{padding:14px}.composer{padding:10px}.bubble{max-width:88%}}
+</style>
+</head>
+<body>
+<section id="auth">
+  <div class="brand">VELTRIX <b>MESSENGER</b></div>
+  <h1 id="authTitle">ورود به حساب</h1>
+  <p class="sub">پیام‌رسان خصوصی شما</p>
+  <form id="authForm">
+    <div class="field"><label for="email">ایمیل</label><input id="email" type="email" autocomplete="email" required placeholder="name@example.com"></div>
+    <div class="field"><label for="password">رمز عبور</label><input id="password" type="password" minlength="8" autocomplete="current-password" required placeholder="حداقل ۸ نویسه"></div>
+    <div class="field hidden" id="nameField"><label for="displayName">نام نمایشی</label><input id="displayName" maxlength="40" placeholder="نامی که دیگران می‌بینند"></div>
+    <div class="actions"><button id="authSubmit" type="submit">ورود</button><button class="secondary" type="button" id="switchAuth">ثبت‌نام</button></div>
+  </form>
+  <div class="notice" id="authNotice" role="status"></div>
+</section>
+
+<main id="app" class="hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidehead">
+      <div class="sideheadtop"><div><div class="brand">VELTRIX <b>MESSENGER</b></div><p id="userLabel">حساب کاربری</p></div><button class="secondary" id="logoutBtn">خروج</button></div>
+      <div class="sideactions"><button id="newChatBtn">＋ گفت‌وگوی جدید</button><button class="secondary" id="profileBtn">پروفایل</button></div>
+    </div>
+    <div id="conversationList"></div>
+  </aside>
+  <section class="chat" id="chat">
+    <header class="chathead"><div><h2 id="chatTitle">گفت‌وگو را انتخاب کن</h2><small id="chatSubtitle">پیام‌های شما در اینجا نمایش داده می‌شوند</small></div><button class="secondary" id="backBtn" style="display:none">بازگشت</button></header>
+    <div id="messages"><div class="empty">از سمت راست یا فهرست گفت‌وگوها، یک چت را انتخاب کن؛ یا یک گفت‌وگوی تازه بساز.</div></div>
+    <div class="composer">
+      <input id="imageInput" type="file" accept="image/*" class="hidden">
+      <button class="toolbtn" id="imageBtn" title="ارسال عکس">▧</button>
+      <button class="toolbtn" id="recordBtn" title="ضبط پیام صوتی">●</button>
+      <textarea id="messageInput" rows="1" placeholder="پیامت را بنویس..." disabled></textarea>
+      <button class="send" id="sendBtn" disabled>ارسال</button>
+    </div>
+    <div class="chatfoot">فایل‌ها در فضای خصوصی ذخیره می‌شوند. برای ضبط صدا، دسترسی میکروفون لازم است.</div>
+  </section>
+</main>
+
+<div id="modal" class="modal hidden"><div class="modalbox"><h3 id="modalTitle">گفت‌وگوی جدید</h3><div id="modalContent"></div><div class="modalbuttons"><button id="modalSubmit">ایجاد</button><button class="secondary" id="modalCancel">انصراف</button></div></div></div>
+<div id="toast" class="hidden"></div>
+
+<script>
+(() => {
+const SUPABASE_URL = "https://gpelalzygwnfngikrcvs.supabase.co";
+const SUPABASE_KEY = "sb_publishable_O17L43rRgYkbA9JY5kSEsQ_7qyQUhTZ";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let user=null, profile=null, activeConversation=null, realtime=null, authMode="login", mediaRecorder=null, audioChunks=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg){$("toast").textContent=msg;$("toast").classList.remove("hidden");setTimeout(()=>$("toast").classList.add("hidden"),3200)}
+function setNotice(msg){$("authNotice").textContent=msg}
+function showAuth(){ $("auth").classList.remove("hidden");$("app").classList.add("hidden"); }
+function showApp(){ $("auth").classList.add("hidden");$("app").classList.remove("hidden"); }
+function setAuthMode(mode){authMode=mode;const signup=mode==="signup";$("authTitle").textContent=signup?"ساخت حساب":"ورود به حساب";$("authSubmit").textContent=signup?"ثبت‌نام":"ورود";$("switchAuth").textContent=signup?"قبلاً حساب دارم":"ثبت‌نام";$("nameField").classList.toggle("hidden",!signup);$("password").autocomplete=signup?"new-password":"current-password";setNotice("");}
+$("switchAuth").onclick=()=>setAuthMode(authMode==="login"?"signup":"login");
+$("authForm").addEventListener("submit",async e=>{e.preventDefault();$("authSubmit").disabled=true;setNotice("در حال اتصال...");try{
+ const email=$("email").value.trim(),password=$("password").value;
+ if(authMode==="signup"){const {data,error}=await db.auth.signUp({email,password,options:{data:{name:$("displayName").value.trim()||email.split("@")[0]}}});if(error)throw error;if(data.session){await boot(data.session.user)}else setNotice("حساب ساخته شد. اگر تأیید ایمیل فعال باشد، ایمیلت را تأیید کن و سپس وارد شو.");}
+ else{const {data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;await boot(data.user)}
+ }catch(err){setNotice(err.message||"خطا در ورود")}finally{$("authSubmit").disabled=false;}});
+async function boot(u){user=u;showApp();await loadProfile();await loadConversations();}
+async function loadProfile(){const {data,error}=await db.from("profiles").select("*").eq("id",user.id).maybeSingle();if(error)throw error;profile=data;$("userLabel").textContent=profile?.display_name||user.email;if(!profile?.username){openProfile(true)}}
+async function saveProfile(username,displayName){username=username.trim().toLowerCase().replace(/^@/,"");if(!/^[a-z0-9_]{3,24}$/.test(username))throw new Error("نام کاربری باید ۳ تا ۲۴ نویسه و فقط شامل حروف انگلیسی، عدد یا _ باشد.");const {data,error}=await db.from("profiles").update({username,display_name:displayName.trim()||username}).eq("id",user.id).select().single();if(error)throw error;profile=data;$("userLabel").textContent=profile.display_name;toast("پروفایل ذخیره شد");}
+function openProfile(required=false){$("modalTitle").textContent="پروفایل شما";$("modalContent").innerHTML=`<div class="field"><label>نام کاربری یکتا</label><input id="mUsername" value="${esc(profile?.username||"")}" placeholder="مثلاً amirreza_7"></div><div class="field"><label>نام نمایشی</label><input id="mDisplay" value="${esc(profile?.display_name||"")}" placeholder="نام شما"></div><small>دیگران برای شروع گفت‌وگوی خصوصی، نام کاربری‌ات را جست‌وجو می‌کنند.</small>`;$("modalSubmit").textContent="ذخیره";$("modal").classList.remove("hidden");$("modalCancel").style.display=required?"none":"";$("modalSubmit").onclick=async()=>{try{await saveProfile($("mUsername").value,$("mDisplay").value);$("modal").classList.add("hidden");}catch(e){toast(e.message)}};}
+$("profileBtn").onclick=()=>openProfile(false);$("modalCancel").onclick=()=>{$("modal").classList.add("hidden")};
+$("logoutBtn").onclick=async()=>{await db.auth.signOut();user=null;profile=null;activeConversation=null;showAuth();setAuthMode("login")};
+function openNewChat(){if(!profile?.username){openProfile(true);return}
+ $("modalTitle").textContent="ساخت گفت‌وگوی جدید";
+ $("modalContent").innerHTML=`<div class="field"><label>نوع گفت‌وگو</label><select id="mKind"><option value="direct">خصوصی</option><option value="group">گروه</option><option value="channel">کانال</option></select></div><div class="field" id="titleField"><label>عنوان گروه یا کانال</label><input id="mTitle" maxlength="80" placeholder="مثلاً دوستان"></div><div class="field"><label>نام کاربری اعضا (بدون @، با کاما جدا کن)</label><input id="mUsers" placeholder="user_one, user_two"></div><small id="kindHint">برای چت خصوصی، فقط نام کاربری یک نفر را وارد کن.</small>`;
+ const kind=$("mKind"),titleField=$("titleField"),hint=$("kindHint");function sync(){titleField.classList.toggle("hidden",kind.value==="direct");hint.textContent=kind.value==="direct"?"برای چت خصوصی، فقط نام کاربری یک نفر را وارد کن.":"نام کاربری اعضا را با کاما جدا کن. خودت به‌طور خودکار اضافه می‌شوی."}kind.onchange=sync;sync();
+ $("modalSubmit").textContent="ایجاد";$("modalCancel").style.display="";$("modal").classList.remove("hidden");
+ $("modalSubmit").onclick=createConversation;
+}
+$("newChatBtn").onclick=openNewChat;
+async function createConversation(){const kind=$("mKind").value,raw=$("mUsers").value.split(",").map(x=>x.trim().replace(/^@/,"").toLowerCase()).filter(Boolean);if(kind==="direct"&&raw.length!==1){toast("برای گفت‌وگوی خصوصی دقیقاً یک نام کاربری وارد کن.");return}if(!raw.length){toast("حداقل یک عضو وارد کن.");return}
+ $("modalSubmit").disabled=true;try{
+ const names=[...new Set(raw)].filter(n=>n!==profile.username);
+ if(kind==="direct"&&names.length!==1)throw new Error("نام کاربری خودت را وارد نکن.");
+ const {data:people,error:findErr}=await db.from("profiles").select("id,username,display_name").in("username",names);if(findErr)throw findErr;
+ const found=new Set((people||[]).map(p=>p.username));const missing=names.filter(n=>!found.has(n));if(missing.length)throw new Error("این نام کاربری پیدا نشد: "+missing.join(", "));
+ const title=kind==="direct"?(people[0].display_name||people[0].username):$("mTitle").value.trim();if(kind!=="direct"&&!title)throw new Error("عنوان گروه یا کانال را وارد کن.");
+ const {data:conv,error}=await db.from("conversations").insert({kind,title,created_by:user.id}).select().single();if(error)throw error;
+ const members=[{conversation_id:conv.id,user_id:user.id,role:"owner"},...people.map(p=>({conversation_id:conv.id,user_id:p.id,role:"member"}))];
+ const {error:memberErr}=await db.from("conversation_members").insert(members);if(memberErr)throw new Error("گفت‌وگو ساخته شد اما افزودن اعضا ناموفق بود: "+memberErr.message);
+ $("modal").classList.add("hidden");await loadConversations();await selectConversation(conv);toast("گفت‌وگو ساخته شد.");
+ }catch(e){toast(e.message||"ساخت گفت‌وگو ناموفق بود")}finally{$("modalSubmit").disabled=false}}
+async function loadConversations(){const {data,error}=await db.from("conversation_members").select("conversation_id,role,conversations!inner(id,kind,title,created_at,created_by)").eq("user_id",user.id).order("joined_at",{ascending:false});if(error){toast(error.message);return}
+ const list=$("conversationList");list.innerHTML="";if(!data?.length){list.innerHTML='<div class="empty">هنوز گفت‌وگویی نداری.<br>با «گفت‌وگوی جدید» شروع کن.</div>';return}
+ for(const row of data){const c=row.conversations;const b=document.createElement("button");b.className="conv"+(activeConversation?.id===c.id?" active":"");b.innerHTML=`<div class="avatar">${c.kind==="channel"?"#":c.kind==="group"?"گ":"چ"}</div><div class="convtext"><div class="convtitle">${esc(c.title||({direct:"گفت‌وگوی خصوصی",group:"گروه",channel:"کانال"}[c.kind]))}</div><div class="convsub">${c.kind==="direct"?"خصوصی":c.kind==="group"?"گروه":"کانال"}</div></div>`;b.onclick=()=>selectConversation(c);list.appendChild(b)}
+}
+async function selectConversation(c){activeConversation=c;$("chatTitle").textContent=c.title||({direct:"گفت‌وگوی خصوصی",group:"گروه",channel:"کانال"}[c.kind]);$("chatSubtitle").textContent=c.kind==="channel"?"کانال":"گفت‌وگوی امن با دسترسی اعضا";$("messageInput").disabled=false;$("sendBtn").disabled=false;$("imageBtn").disabled=false;$("recordBtn").disabled=false;
+ $("sidebar").classList.add("mobile-hide");$("chat").classList.add("mobile-show");$("backBtn").style.display="";await loadConversations();await loadMessages();subscribeMessages(c.id);}
+$("backBtn").onclick=()=>{$("sidebar").classList.remove("mobile-hide");$("chat").classList.remove("mobile-show")};
+async function signedFile(path){const {data,error}=await db.storage.from("chat-media").createSignedUrl(path,3600);if(error)throw error;return data.signedUrl}
+async function renderMessage(m){const own=m.sender_id===user.id;const wrap=document.createElement("div");wrap.className="bubble"+(own?" mine":"");let content="";if(m.kind==="text")content=`<div>${esc(m.body).replace(/\n/g,"<br>")}</div>`;else if(m.kind==="image"){try{const url=await signedFile(m.file_path);content=`<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="تصویر ارسال‌شده"></a>`}catch{content="<small>تصویر در دسترس نیست</small>"}}else if(m.kind==="audio"){try{const url=await signedFile(m.file_path);content=`<audio controls preload="none" src="${url}"></audio>`}catch{content="<small>صوت در دسترس نیست</small>"}}
+ let sender="";if(!own){const {data:p}=await db.from("profiles").select("display_name,username").eq("id",m.sender_id).maybeSingle();sender=`<div class="sender">${esc(p?.display_name||p?.username||"عضو")}</div>`}
+ const time=new Date(m.created_at).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});wrap.innerHTML=sender+content+`<div class="time">${time}</div>`;$("messages").appendChild(wrap);$("messages").scrollTop=$("messages").scrollHeight;}
+async function loadMessages(){if(!activeConversation)return;$("messages").innerHTML="";const {data,error}=await db.from("messages").select("*").eq("conversation_id",activeConversation.id).order("created_at",{ascending:true}).limit(150);if(error){$("messages").innerHTML='<div class="empty">خطا در دریافت پیام‌ها: '+esc(error.message)+'</div>';return}if(!data?.length){$("messages").innerHTML='<div class="empty">هنوز پیامی ارسال نشده است.<br>اولین پیام را تو بفرست!</div>';return}for(const m of data)await renderMessage(m)}
+function subscribeMessages(id){if(realtime)db.removeChannel(realtime);realtime=db.channel("messages-"+id).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+id},payload=>{if(payload.new.sender_id!==user.id)renderMessage(payload.new)}).subscribe();}
+async function sendText(){const body=$("messageInput").value.trim();if(!body||!activeConversation)return;$("sendBtn").disabled=true;try{const {error}=await db.from("messages").insert({conversation_id:activeConversation.id,sender_id:user.id,kind:"text",body});if(error)throw error;$("messageInput").value="";const {data}=await db.from("messages").select("*").eq("conversation_id",activeConversation.id).eq("sender_id",user.id).order("created_at",{ascending:false}).limit(1);if(data?.[0])await renderMessage(data[0]);}catch(e){toast(e.message||"ارسال پیام ناموفق بود")}finally{$("sendBtn").disabled=false;$("messageInput").focus()}}
+$("sendBtn").onclick=sendText;$("messageInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendText()}});
+$("imageBtn").onclick=()=>$("imageInput").click();$("imageInput").onchange=async e=>{const file=e.target.files[0];if(!file||!activeConversation)return;if(file.size>20*1024*1024){toast("حجم فایل باید کمتر از ۲۰ مگابایت باشد.");return}if(!file.type.startsWith("image/")){toast("فقط فایل تصویری انتخاب کن.");return}await uploadMedia(file,"image");e.target.value=""};
+async function uploadMedia(file,kind){try{const ext=(file.name.split(".").pop()|| (kind==="audio"?"webm":"jpg")).replace(/[^a-zA-Z0-9]/g,"").slice(0,8);const path=`${activeConversation.id}/${user.id}/${crypto.randomUUID()}.${ext}`;const {error:upErr}=await db.storage.from("chat-media").upload(path,file,{contentType:file.type||"application/octet-stream",upsert:false});if(upErr)throw upErr;const {data,error}=await db.from("messages").insert({conversation_id:activeConversation.id,sender_id:user.id,kind,file_path:path}).select().single();if(error)throw error;await renderMessage(data);toast(kind==="image"?"عکس ارسال شد.":"پیام صوتی ارسال شد.");}catch(e){toast(e.message||"بارگذاری فایل ناموفق بود")}}
+$("recordBtn").onclick=async()=>{if(!activeConversation)return;if(mediaRecorder&&mediaRecorder.state==="recording"){mediaRecorder.stop();$("recordBtn").textContent="●";$("recordBtn").style.color="";return}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(stream);audioChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size)audioChunks.push(e.data)};mediaRecorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(audioChunks,{type:mediaRecorder.mimeType||"audio/webm"});const file=new File([blob],`voice-${Date.now()}.webm`,{type:blob.type});await uploadMedia(file,"audio")};mediaRecorder.start();$("recordBtn").textContent="■ توقف";$("recordBtn").style.color="#ff6876";toast("ضبط شروع شد؛ برای پایان دوباره دکمه را بزن.")}catch(e){toast("دسترسی میکروفون ممکن نشد. صفحه باید در بستر HTTPS باز شود.")}};
+db.auth.getSession().then(async({data})=>{if(data.session){try{await boot(data.session.user)}catch(e){toast(e.message||"خطا در بارگذاری حساب")}}else showAuth()});
+db.auth.onAuthStateChange((event,session)=>{if(event==="SIGNED_OUT"){user=null;profile=null;showAuth()}});
+})();
+</script>
+</body>
+</html>
