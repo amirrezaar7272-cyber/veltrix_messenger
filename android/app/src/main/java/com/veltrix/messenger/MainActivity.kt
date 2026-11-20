@@ -353,7 +353,17 @@ class MainActivity : ComponentActivity() {
                         limit(12)
                     }.decodeList<CallSignalRow>()
                     rows.asReversed().forEach { row ->
-                        if (handledSignals.add(row.id)) processCallSignal(row)
+                        if (handledSignals.add(row.id)) {
+                            try {
+                                processCallSignal(row)
+                                supabase.from("call_signals").delete {
+                                    filter { eq("id", row.id) }
+                                }
+                            } catch (e: Exception) {
+                                handledSignals.remove(row.id)
+                                throw e
+                            }
+                        }
                     }
                 } catch (_: Exception) { }
                 delay(1200)
@@ -515,8 +525,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    incomingCall = row
                     ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.RECORD_AUDIO), 701)
-                    notice = "اجازه میکروفون را فعال کن و دوباره تماس بگیر."
+                    notice = "اجازه میکروفون را فعال کن و دوباره روی پاسخ بزن."
                     return@launch
                 }
                 val sdp = row.signal["sdp"]?.jsonPrimitive?.content ?: error("اطلاعات تماس ناقص است.")
