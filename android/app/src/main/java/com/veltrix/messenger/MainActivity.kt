@@ -1,6 +1,11 @@
 package com.veltrix.messenger
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.os.Build
+import java.time.Instant
 import android.content.Context
 import android.media.AudioManager
 import android.media.MediaRecorder
@@ -179,9 +184,14 @@ class MainActivity : ComponentActivity() {
     private var pollJob: Job? = null
     private var refreshJob: Job? = null
     private val handledSignals = mutableSetOf<String>()
+    private var messageNotificationCursor: String = Instant.now().toString()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        createMessageNotificationChannel()
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 703)
+        }
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(this).createInitializationOptions()
         )
@@ -527,6 +537,25 @@ class MainActivity : ComponentActivity() {
             while (userId != null) {
                 try {
                     val id = userId ?: break
+                    val memberships = supabase.from("conversation_members").select {
+                        filter { eq("user_id", id) }
+                    }.decodeList<MemberRow>()
+                    val conversationIds = memberships.map { it.conversationId }.distinct()
+                    if (conversationIds.isNotEmpty()) {
+                        val incoming = supabase.from("messages").select {
+                            filter { isIn("conversation_id", conversationIds); gt("created_at", messageNotificationCursor) }
+                            order("created_at", Order.ASCENDING)
+                            limit(40)
+                        }.decodeList<MessageRow>()
+                        incoming.forEach { message ->
+                            if (message.senderId != id && selectedConversation?.id != message.conversationId) {
+                                val title = conversations.firstOrNull { it.id == message.conversationId }?.title ?: "پیام جدید"
+                                val body = when(message.kind) { "image" -> "یک عکس فرستاد"; "video" -> "یک ویدیو فرستاد"; "audio" -> "یک پیام صوتی فرستاد"; else -> message.body ?: "پیام جدید" }
+                                showMessageNotification(title ?: "VELTRIX", body, message.id.hashCode())
+                            }
+                        }
+                        if (incoming.isNotEmpty()) messageNotificationCursor = incoming.maxOf { it.createdAt }
+                    }
                     val rows = supabase.from("call_signals").select {
                         filter { eq("recipient_id", id) }
                         order("created_at", Order.DESCENDING)
@@ -549,6 +578,42 @@ class MainActivity : ComponentActivity() {
                 delay(1200)
             }
         }
+    }
+
+    private fun createMessageNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel("veltrix_messages", "پیام‌های جدید", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "اعلان پیام‌های دریافتی VELTRIX"
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    private fun showMessageNotification(title: String, body: String, id: Int) {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val openApp = PendingIntent.getActivity(
+            this, id, packageManager.getLaunchIntentForPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            android.app.Notification.Builder(this, "veltrix_messages")
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(body.take(120))
+                .setContentIntent(openApp)
+                .setAutoCancel(true)
+                .build()
+        } else {
+            @Suppress("DEPRECATION")
+            android.app.Notification.Builder(this)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(body.take(120))
+                .setContentIntent(openApp)
+                .setAutoCancel(true)
+                .build()
+        }
+        getSystemService(NotificationManager::class.java).notify(id, notification)
     }
 
     private suspend fun sendSignal(remoteId: String, conversationId: String, type: String, sdp: String? = null) {
