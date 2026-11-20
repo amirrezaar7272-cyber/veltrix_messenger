@@ -426,9 +426,11 @@ class MainActivity : ComponentActivity() {
             override fun onAddTrack(receiver: org.webrtc.RtpReceiver?, streams: Array<out org.webrtc.MediaStream>?) {}
         }
         callPeer = factory.createPeerConnection(config, observer) ?: error("ساخت اتصال WebRTC ناموفق بود.")
-        audioSource = factory.createAudioSource(MediaConstraints())
-        audioTrack = factory.createAudioTrack("veltrix-audio", audioSource)
-        callPeer?.addTrack(audioTrack, listOf("veltrix-audio-stream"))
+        val source = factory.createAudioSource(MediaConstraints())
+        audioSource = source
+        val track = factory.createAudioTrack("veltrix-audio", source)
+        audioTrack = track
+        callPeer?.addTrack(track, listOf("veltrix-audio-stream"))
         val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         manager.mode = AudioManager.MODE_IN_COMMUNICATION
         manager.isSpeakerphoneOn = speakerOn
