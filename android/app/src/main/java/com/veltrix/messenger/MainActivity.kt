@@ -3,10 +3,16 @@ package com.veltrix.messenger
 import android.Manifest
 import android.content.Context
 import android.media.AudioManager
+import android.net.Uri
+import android.content.Intent
+import android.provider.OpenableColumns
+import java.util.UUID
 import android.os.Bundle
 import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -35,6 +41,9 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.realtime.Realtime
+import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.storage.storage
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -71,6 +80,7 @@ private val supabase = createSupabaseClient(
     install(Auth)
     install(Postgrest)
     install(Realtime)
+    install(Storage)
 }
 
 @Serializable data class ProfileRow(
@@ -106,13 +116,15 @@ private val supabase = createSupabaseClient(
     @SerialName("sender_id") val senderId: String,
     val kind: String = "text",
     val body: String? = null,
-    @SerialName("created_at") val createdAt: String
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("file_path") val filePath: String? = null
 )
 @Serializable data class MessageInsert(
     @SerialName("conversation_id") val conversationId: String,
     @SerialName("sender_id") val senderId: String,
     val kind: String = "text",
-    val body: String
+    val body: String,
+    @SerialName("file_path") val filePath: String? = null
 )
 @Serializable data class SavedMessageInsert(
     @SerialName("user_id") val userId: String,
@@ -213,6 +225,8 @@ class MainActivity : ComponentActivity() {
                         onBack = { selectedConversation = null; messages = emptyList() },
                         onSend = { sendMessage(it) },
                         onSaveMessage = { saveMessage(it) },
+                        onPickMedia = { uploadMedia(it) },
+                        onOpenMedia = { openMedia(it) },
                         onCall = { requestAudioPermissionAndCall() },
                         onHangup = { endCall(true) },
                         onSpeaker = { toggleSpeaker() }
@@ -328,6 +342,56 @@ class MainActivity : ComponentActivity() {
                     filter { isIn("id", ids) }
                 }.decodeList<MessageRow>()
             } catch (e: Exception) { notice = e.message ?: "دریافت پیام‌های ذخیره‌شده ناموفق بود." }
+        }
+    }
+
+    private fun uploadMedia(uri: Uri) {
+        lifecycleScope.launch {
+            val conversation = selectedConversation ?: return@launch
+            val sender = userId ?: return@launch
+            busy = true
+            notice = "در حال بارگذاری رسانه…"
+            try {
+                val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+                val kind = when {
+                    mime.startsWith("image/") -> "image"
+                    mime.startsWith("video/") -> "video"
+                    mime.startsWith("audio/") -> "audio"
+                    else -> error("فقط عکس، ویدیو یا فایل صوتی قابل ارسال است.")
+                }
+                val displayName = contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+                } ?: "veltrix_media"
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("خواندن فایل انتخاب‌شده ممکن نشد.")
+                require(bytes.size <= 25 * 1024 * 1024) { "حجم فایل نباید بیشتر از ۲۵ مگابایت باشد." }
+                val ext = displayName.substringAfterLast('.', "").takeIf { it.isNotBlank() }
+                    ?: mime.substringAfter('/').substringBefore(';').ifBlank { "bin" }
+                val path = "${conversation.id}/${sender}/${UUID.randomUUID()}.${ext}"
+                supabase.storage.from("chat-media").upload(path, bytes) { upsert = false }
+                supabase.from("messages").insert(MessageInsert(conversation.id, sender, kind, displayName, path))
+                notice = "رسانه ارسال شد."
+                loadMessages()
+            } catch (e: Exception) {
+                notice = e.message ?: "ارسال رسانه ناموفق بود."
+            } finally { busy = false }
+        }
+    }
+
+    private fun openMedia(message: MessageRow) {
+        val path = message.filePath ?: return
+        lifecycleScope.launch {
+            try {
+                val url = supabase.storage.from("chat-media").createSignedUrl(path, 30.minutes)
+                val mime = when(message.kind) {
+                    "image" -> "image/*"
+                    "video" -> "video/*"
+                    "audio" -> "audio/*"
+                    else -> "*/*"
+                }
+                startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(url), mime))
+            } catch (e: Exception) { notice = e.message ?: "باز کردن رسانه ناموفق بود." }
         }
     }
 
@@ -736,9 +800,10 @@ private fun ConversationScreen(
 private fun ChatScreen(
     conversation: ConversationRow, messages: List<MessageRow>, busy: Boolean, notice: String,
     inCall: Boolean, callStatus: String,
-    onBack: () -> Unit, onSend: (String) -> Unit, onSaveMessage: (String) -> Unit, onCall: () -> Unit, onHangup: () -> Unit, onSpeaker: () -> Unit
+    onBack: () -> Unit, onSend: (String) -> Unit, onSaveMessage: (String) -> Unit, onPickMedia: (Uri) -> Unit, onOpenMedia: (MessageRow) -> Unit, onCall: () -> Unit, onHangup: () -> Unit, onSpeaker: () -> Unit
 ) {
     var draft by remember(conversation.id) { mutableStateOf("") }
+    val mediaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) onPickMedia(uri) }
     Surface(Modifier.fillMaxSize(), color = Ink) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().background(Panel).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -762,7 +827,10 @@ private fun ChatScreen(
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.widthIn(max = 310.dp).padding(vertical = 4.dp)
                         ) {
-                            Text(message.body ?: "", color = Color.White, modifier = Modifier.padding(12.dp))
+                            Column(Modifier.padding(10.dp)) {
+                                Text(if (message.filePath != null) when(message.kind) { "image" -> "🖼️ ${message.body ?: "عکس"}"; "video" -> "🎬 ${message.body ?: "ویدیو"}"; "audio" -> "🎙️ ${message.body ?: "ویس"}"; else -> message.body ?: "" } else message.body ?: "", color = TextPrimary, modifier = Modifier.clickable(enabled = message.filePath != null) { onOpenMedia(message) })
+                                TextButton(onClick = { onSaveMessage(message.id) }) { Text("☆ ذخیره") }
+                            }
                         }
                     }
                 }
@@ -771,6 +839,7 @@ private fun ChatScreen(
             Row(Modifier.fillMaxWidth().background(Panel).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(draft, { draft = it }, Modifier.weight(1f), placeholder = { Text("پیامت را بنویس…") }, maxLines = 4)
                 Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { mediaPicker.launch(arrayOf("image/*", "video/*", "audio/*")) }, enabled = !busy) { Text("＋ رسانه") }
                 Button(onClick = { onSend(draft); draft = "" }, enabled = !busy && draft.isNotBlank()) { Text("ارسال") }
             }
         }
