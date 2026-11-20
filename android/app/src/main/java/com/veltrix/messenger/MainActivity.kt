@@ -3,6 +3,9 @@ package com.veltrix.messenger
 import android.Manifest
 import android.content.Context
 import android.media.AudioManager
+import android.media.MediaRecorder
+import android.os.Build
+import java.io.File
 import android.net.Uri
 import android.content.Intent
 import android.provider.OpenableColumns
@@ -164,6 +167,9 @@ class MainActivity : ComponentActivity() {
     private var callStatus by mutableStateOf("")
     private var isInCall by mutableStateOf(false)
     private var speakerOn by mutableStateOf(false)
+    private var isRecordingVoice by mutableStateOf(false)
+    private var voiceRecorder: MediaRecorder? = null
+    private var voiceFile: File? = null
     private var callPeer: PeerConnection? = null
     private var audioSource: AudioSource? = null
     private var audioTrack: AudioTrack? = null
@@ -227,6 +233,8 @@ class MainActivity : ComponentActivity() {
                         onSaveMessage = { saveMessage(it) },
                         onPickMedia = { uploadMedia(it) },
                         onOpenMedia = { openMedia(it) },
+                        onVoice = { toggleVoiceRecording() },
+                        recordingVoice = isRecordingVoice,
                         onCall = { requestAudioPermissionAndCall() },
                         onHangup = { endCall(true) },
                         onSpeaker = { toggleSpeaker() }
@@ -342,6 +350,65 @@ class MainActivity : ComponentActivity() {
                     filter { isIn("id", ids) }
                 }.decodeList<MessageRow>()
             } catch (e: Exception) { notice = e.message ?: "دریافت پیام‌های ذخیره‌شده ناموفق بود." }
+        }
+    }
+
+    private fun toggleVoiceRecording() {
+        if (isRecordingVoice) {
+            try {
+                voiceRecorder?.stop()
+                voiceRecorder?.release()
+                voiceRecorder = null
+                isRecordingVoice = false
+                voiceFile?.let { uploadVoiceFile(it) }
+            } catch (e: Exception) {
+                voiceRecorder?.release(); voiceRecorder = null; isRecordingVoice = false
+                notice = "ضبط ویس کامل نشد: ${e.message}"
+            }
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 702)
+            notice = "برای ضبط ویس، اجازه میکروفون را فعال کن و دوباره دکمه ویس را بزن."
+            return
+        }
+        try {
+            val file = File(cacheDir, "veltrix_voice_${System.currentTimeMillis()}.m4a")
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this) else MediaRecorder()
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioEncodingBitRate(96000)
+            recorder.setAudioSamplingRate(44100)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            voiceFile = file
+            voiceRecorder = recorder
+            isRecordingVoice = true
+            notice = "در حال ضبط ویس… برای پایان، دوباره دکمه را بزن."
+        } catch (e: Exception) {
+            voiceRecorder?.release(); voiceRecorder = null; isRecordingVoice = false
+            notice = "شروع ضبط ویس ناموفق بود: ${e.message}"
+        }
+    }
+
+    private fun uploadVoiceFile(file: File) {
+        lifecycleScope.launch {
+            val conversation = selectedConversation ?: return@launch
+            val sender = userId ?: return@launch
+            busy = true
+            try {
+                val bytes = file.readBytes()
+                require(bytes.isNotEmpty() && bytes.size <= 25 * 1024 * 1024) { "فایل ویس خالی یا بزرگ‌تر از ۲۵ مگابایت است." }
+                val path = "${conversation.id}/${sender}/${UUID.randomUUID()}.m4a"
+                supabase.storage.from("chat-media").upload(path, bytes) { upsert = false }
+                supabase.from("messages").insert(MessageInsert(conversation.id, sender, "audio", "پیام صوتی", path))
+                notice = "ویس ارسال شد."
+                loadMessages()
+                file.delete()
+            } catch (e: Exception) { notice = e.message ?: "ارسال ویس ناموفق بود." }
+            finally { busy = false }
         }
     }
 
@@ -683,6 +750,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         pollJob?.cancel(); refreshJob?.cancel(); endCall(false)
+        try { voiceRecorder?.stop() } catch (_: Exception) {}
+        voiceRecorder?.release(); voiceRecorder = null
         peerFactory?.dispose(); peerFactory = null
         super.onDestroy()
     }
@@ -800,7 +869,7 @@ private fun ConversationScreen(
 private fun ChatScreen(
     conversation: ConversationRow, messages: List<MessageRow>, busy: Boolean, notice: String,
     inCall: Boolean, callStatus: String,
-    onBack: () -> Unit, onSend: (String) -> Unit, onSaveMessage: (String) -> Unit, onPickMedia: (Uri) -> Unit, onOpenMedia: (MessageRow) -> Unit, onCall: () -> Unit, onHangup: () -> Unit, onSpeaker: () -> Unit
+    onBack: () -> Unit, onSend: (String) -> Unit, onSaveMessage: (String) -> Unit, onPickMedia: (Uri) -> Unit, onOpenMedia: (MessageRow) -> Unit, onVoice: () -> Unit, recordingVoice: Boolean, onCall: () -> Unit, onHangup: () -> Unit, onSpeaker: () -> Unit
 ) {
     var draft by remember(conversation.id) { mutableStateOf("") }
     val mediaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) onPickMedia(uri) }
@@ -839,6 +908,7 @@ private fun ChatScreen(
             Row(Modifier.fillMaxWidth().background(Panel).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(draft, { draft = it }, Modifier.weight(1f), placeholder = { Text("پیامت را بنویس…") }, maxLines = 4)
                 Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onVoice, enabled = !busy) { Text(if (recordingVoice) "■ پایان ویس" else "🎙 ویس") }
                 TextButton(onClick = { mediaPicker.launch(arrayOf("image/*", "video/*", "audio/*")) }, enabled = !busy) { Text("＋ رسانه") }
                 Button(onClick = { onSend(draft); draft = "" }, enabled = !busy && draft.isNotBlank()) { Text("ارسال") }
             }
