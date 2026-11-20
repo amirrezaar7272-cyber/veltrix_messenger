@@ -157,6 +157,7 @@ class MainActivity : ComponentActivity() {
         val adm = JavaAudioDeviceModule.builder(this).createAudioDeviceModule()
         peerFactory = PeerConnectionFactory.builder().setAudioDeviceModule(adm).createPeerConnectionFactory()
         lifecycleScope.launch {
+            supabase.auth.awaitInitialization()
             val current = supabase.auth.currentSessionOrNull()?.user
             if (current != null) onAuthenticated(current.id)
         }
