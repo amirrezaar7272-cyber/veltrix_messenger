@@ -29,9 +29,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.auth.signInWith
-import io.github.jan.supabase.auth.signUpWith
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
