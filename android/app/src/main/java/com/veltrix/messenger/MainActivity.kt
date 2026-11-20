@@ -32,7 +32,6 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.signInWith
 import io.github.jan.supabase.auth.signUpWith
-import io.github.jan.supabase.auth.currentUserOrNull
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
@@ -159,7 +158,7 @@ class MainActivity : ComponentActivity() {
         val adm = JavaAudioDeviceModule.builder(this).createAudioDeviceModule()
         peerFactory = PeerConnectionFactory.builder().setAudioDeviceModule(adm).createPeerConnectionFactory()
         lifecycleScope.launch {
-            val current = supabase.auth.currentUserOrNull()
+            val current = supabase.auth.currentSessionOrNull()?.user
             if (current != null) onAuthenticated(current.id)
         }
         setContent {
@@ -220,7 +219,7 @@ class MainActivity : ComponentActivity() {
                     notice = "ثبت‌نام ارسال شد. اگر تأیید ایمیل فعال باشد، ایمیلت را تأیید کن و سپس وارد شو."
                 } else {
                     supabase.auth.signInWith(Email) { this.email = email.trim(); this.password = password }
-                    val id = supabase.auth.currentUserOrNull()?.id ?: error("ورود انجام شد اما شناسه کاربر دریافت نشد.")
+                    val id = supabase.auth.currentSessionOrNull()?.user?.id ?: error("ورود انجام شد اما شناسه کاربر دریافت نشد.")
                     onAuthenticated(id)
                 }
             } catch (e: Exception) {
