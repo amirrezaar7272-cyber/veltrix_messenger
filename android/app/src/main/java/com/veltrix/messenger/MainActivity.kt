@@ -29,7 +29,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.providers.Email
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.signInWith
 import io.github.jan.supabase.auth.signUpWith
@@ -80,6 +79,7 @@ private val supabase = createSupabaseClient(
     val username: String? = null,
     @SerialName("display_name") val displayName: String? = null
 )
+@Serializable data class ProfileUpdate(val username: String, @SerialName("display_name") val displayName: String)
 @Serializable data class MemberRow(
     @SerialName("conversation_id") val conversationId: String,
     @SerialName("user_id") val userId: String,
@@ -247,9 +247,11 @@ class MainActivity : ComponentActivity() {
                 require(Regex("^[a-z0-9_]{3,24}$").matches(username)) {
                     "نام کاربری باید ۳ تا ۲۴ نویسه و فقط شامل حروف انگلیسی، عدد یا _ باشد."
                 }
-                supabase.from("profiles").insert(
-                    ProfileRow(id, username, displayName.trim().ifBlank { username })
-                )
+                supabase.from("profiles").update(
+                    ProfileUpdate(username, displayName.trim().ifBlank { username })
+                ) {
+                    filter { eq("id", id) }
+                }
                 profile = ProfileRow(id, username, displayName.trim().ifBlank { username })
                 loadConversations()
             } catch (e: Exception) { notice = e.message ?: "ذخیره پروفایل ناموفق بود." }
