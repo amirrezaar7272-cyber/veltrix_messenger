@@ -58,10 +58,11 @@ import org.webrtc.audio.JavaAudioDeviceModule
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-private val Ink = Color(0xFF0B1018)
-private val Panel = Color(0xFF151F2D)
-private val Accent = Color(0xFFE04455)
-private val Soft = Color(0xFF9AAEC5)
+private val Ink = Color(0xFFFFFDF5)
+private val Panel = Color(0xFFFFFFFF)
+private val Accent = Color(0xFFF2D46B)
+private val Soft = Color(0xFF77715F)
+private val TextPrimary = Color(0xFF29271F)
 
 private val supabase = createSupabaseClient(
     supabaseUrl = "https://gpelalzygwnfngikrcvs.supabase.co",
@@ -162,9 +163,10 @@ class MainActivity : ComponentActivity() {
             if (current != null) onAuthenticated(current.id)
         }
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(
+            MaterialTheme(colorScheme = lightColorScheme(
                 background = Ink, surface = Panel, primary = Accent,
-                onBackground = Color.White, onSurface = Color.White
+                onPrimary = TextPrimary, onBackground = TextPrimary, onSurface = TextPrimary,
+                secondary = Color(0xFFE9DCA8), onSecondary = TextPrimary
             )) {
                 when {
                     userId == null -> LoginScreen(
@@ -591,7 +593,7 @@ private fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("VELTRIX", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp)
+            Text("VELTRIX", color = TextPrimary, fontSize = 34.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp)
             Text("MESSENGER", color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
             Spacer(Modifier.height(28.dp))
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(24.dp)) {
@@ -710,7 +712,7 @@ private fun ChatScreen(
                     val mine = message.senderId == supabase.auth.currentUserOrNull()?.id
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = if (mine) Color(0xFF542735) else Panel),
+                            colors = CardDefaults.cardColors(containerColor = if (mine) Color(0xFFFFF0B8) else Panel),
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.widthIn(max = 310.dp).padding(vertical = 4.dp)
                         ) {
