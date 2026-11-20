@@ -13,8 +13,8 @@ android {
         applicationId = "com.veltrix.messenger"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         buildConfigField("String", "SUPABASE_URL", "\"https://gpelalzygwnfngikrcvs.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_O17L43rRgYkbA9JY5kSEsQ_7qyQUhTZ\"")
     }
@@ -44,5 +44,6 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:storage-kt")
     implementation("io.ktor:ktor-client-android:3.0.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
