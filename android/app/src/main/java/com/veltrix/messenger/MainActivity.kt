@@ -114,6 +114,16 @@ private val supabase = createSupabaseClient(
     val kind: String = "text",
     val body: String
 )
+@Serializable data class SavedMessageInsert(
+    @SerialName("user_id") val userId: String,
+    @SerialName("message_id") val messageId: String
+)
+@Serializable data class SavedMessageRow(
+    val id: String,
+    @SerialName("message_id") val messageId: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("created_at") val createdAt: String
+)
 @Serializable data class CallSignalRow(
     val id: String,
     @SerialName("conversation_id") val conversationId: String,
@@ -134,6 +144,8 @@ class MainActivity : ComponentActivity() {
     private var conversations by mutableStateOf<List<ConversationRow>>(emptyList())
     private var selectedConversation by mutableStateOf<ConversationRow?>(null)
     private var messages by mutableStateOf<List<MessageRow>>(emptyList())
+    private var savedMessages by mutableStateOf<List<MessageRow>>(emptyList())
+    private var showSaved by mutableStateOf(false)
     private var busy by mutableStateOf(false)
     private var notice by mutableStateOf("")
     private var incomingCall by mutableStateOf<CallSignalRow?>(null)
@@ -179,10 +191,16 @@ class MainActivity : ComponentActivity() {
                         onSave = { username, display -> createProfile(username, display) },
                         onLogout = { logout() }
                     )
+                    selectedConversation == null && showSaved -> SavedMessagesScreen(
+                        messages = savedMessages,
+                        onBack = { showSaved = false },
+                        onOpen = { message -> showSaved = false; conversations.firstOrNull { it.id == message.conversationId }?.let { openConversation(it) } }
+                    )
                     selectedConversation == null -> ConversationScreen(
                         profile = profile!!, conversations = conversations, busy = busy, notice = notice,
                         onOpen = { openConversation(it) },
                         onNewChat = { username -> createDirectChat(username) },
+                        onSaved = { loadSavedMessages(); showSaved = true },
                         onLogout = { logout() }
                     )
                     else -> ChatScreen(
@@ -194,6 +212,7 @@ class MainActivity : ComponentActivity() {
                         callStatus = callStatus,
                         onBack = { selectedConversation = null; messages = emptyList() },
                         onSend = { sendMessage(it) },
+                        onSaveMessage = { saveMessage(it) },
                         onCall = { requestAudioPermissionAndCall() },
                         onHangup = { endCall(true) },
                         onSpeaker = { toggleSpeaker() }
@@ -293,6 +312,33 @@ class MainActivity : ComponentActivity() {
             order("created_at", Order.ASCENDING)
             limit(120)
         }.decodeList<MessageRow>()
+    }
+
+    private fun loadSavedMessages() {
+        lifecycleScope.launch {
+            try {
+                val id = userId ?: return@launch
+                val rows = supabase.from("saved_messages").select {
+                    filter { eq("user_id", id) }
+                    order("created_at", Order.DESCENDING)
+                    limit(100)
+                }.decodeList<SavedMessageRow>()
+                val ids = rows.map { it.messageId }
+                savedMessages = if (ids.isEmpty()) emptyList() else supabase.from("messages").select {
+                    filter { isIn("id", ids) }
+                }.decodeList<MessageRow>()
+            } catch (e: Exception) { notice = e.message ?: "دریافت پیام‌های ذخیره‌شده ناموفق بود." }
+        }
+    }
+
+    private fun saveMessage(messageId: String) {
+        lifecycleScope.launch {
+            try {
+                val id = userId ?: return@launch
+                supabase.from("saved_messages").insert(SavedMessageInsert(id, messageId))
+                notice = "پیام به ذخیره‌شده‌ها اضافه شد."
+            } catch (e: Exception) { notice = if (e.message.orEmpty().contains("duplicate", true)) "این پیام قبلاً ذخیره شده." else (e.message ?: "ذخیره پیام ناموفق بود.") }
+        }
     }
 
     private fun sendMessage(text: String) {
@@ -644,7 +690,7 @@ private fun ProfileSetupScreen(
 @Composable
 private fun ConversationScreen(
     profile: ProfileRow, conversations: List<ConversationRow>, busy: Boolean, notice: String,
-    onOpen: (ConversationRow) -> Unit, onNewChat: (String) -> Unit, onLogout: () -> Unit
+    onOpen: (ConversationRow) -> Unit, onNewChat: (String) -> Unit, onSaved: () -> Unit, onLogout: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     Surface(Modifier.fillMaxSize(), color = Ink) {
@@ -654,7 +700,7 @@ private fun ConversationScreen(
                     Text("VELTRIX MESSENGER", color = Color.White, fontWeight = FontWeight.Black)
                     Text("@${profile.username ?: ""}", color = Soft, fontSize = 12.sp)
                 }
-                TextButton(onClick = onLogout) { Text("خروج") }
+                Row { TextButton(onClick = onSaved) { Text("پیام‌های ذخیره‌شده") }; TextButton(onClick = onLogout) { Text("خروج") } }
             }
             Spacer(Modifier.height(16.dp))
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
@@ -690,7 +736,7 @@ private fun ConversationScreen(
 private fun ChatScreen(
     conversation: ConversationRow, messages: List<MessageRow>, busy: Boolean, notice: String,
     inCall: Boolean, callStatus: String,
-    onBack: () -> Unit, onSend: (String) -> Unit, onCall: () -> Unit, onHangup: () -> Unit, onSpeaker: () -> Unit
+    onBack: () -> Unit, onSend: (String) -> Unit, onSaveMessage: (String) -> Unit, onCall: () -> Unit, onHangup: () -> Unit, onSpeaker: () -> Unit
 ) {
     var draft by remember(conversation.id) { mutableStateOf("") }
     Surface(Modifier.fillMaxSize(), color = Ink) {
@@ -726,6 +772,33 @@ private fun ChatScreen(
                 OutlinedTextField(draft, { draft = it }, Modifier.weight(1f), placeholder = { Text("پیامت را بنویس…") }, maxLines = 4)
                 Spacer(Modifier.width(8.dp))
                 Button(onClick = { onSend(draft); draft = "" }, enabled = !busy && draft.isNotBlank()) { Text("ارسال") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedMessagesScreen(
+    messages: List<MessageRow>,
+    onBack: () -> Unit,
+    onOpen: (MessageRow) -> Unit
+) {
+    Surface(Modifier.fillMaxSize(), color = Ink) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) { Text("بازگشت") }
+                Text("پیام‌های ذخیره‌شده", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            if (messages.isEmpty()) Text("هنوز پیامی ذخیره نکرده‌ای.", color = Soft)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(messages, key = { it.id }) { message ->
+                    Card(Modifier.fillMaxWidth().clickable { onOpen(message) }, colors = CardDefaults.cardColors(containerColor = Panel)) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text(message.body ?: "رسانه", color = TextPrimary)
+                            Text("برای رفتن به گفت‌وگو لمس کن", color = Soft, fontSize = 11.sp)
+                        }
+                    }
+                }
             }
         }
     }
